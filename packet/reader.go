@@ -3,7 +3,7 @@ package packet
 import (
 	"bufio"
 	"encoding/binary"
-	"errors"
+	"github.com/pkg/errors"
 	"io"
 )
 
@@ -19,9 +19,8 @@ const segmentBits = 0x7f
 const continueBit = 0x80
 
 func (r *Reader) ReadVarInt() (int, error) {
-
 	var (
-		value       byte
+		value       int
 		position    int
 		currentByte byte
 		err         error
@@ -30,9 +29,9 @@ func (r *Reader) ReadVarInt() (int, error) {
 	for {
 		currentByte, err = r.ReadByte()
 		if err != nil {
-			return 0, err
+			return 0, errors.Wrap(err, "failed to read VarInt")
 		}
-		value |= (currentByte & segmentBits) << position
+		value |= int(currentByte&segmentBits) << position
 
 		if currentByte&continueBit == 0 {
 			break
@@ -45,7 +44,7 @@ func (r *Reader) ReadVarInt() (int, error) {
 		}
 	}
 
-	return int(value), nil
+	return value, nil
 }
 
 func (r *Reader) ReadString() (string, error) {
@@ -57,7 +56,7 @@ func (r *Reader) ReadString() (string, error) {
 	bytes := make([]byte, length)
 	_, err = r.Read(bytes)
 	if err != nil {
-		return "", err
+		return "", errors.Wrap(err, "failed to read string")
 	}
 
 	return string(bytes), nil
@@ -67,17 +66,41 @@ func (r *Reader) ReadUUID() (UUID, error) {
 	bytes := make([]byte, 16)
 	_, err := r.Read(bytes)
 	if err != nil {
-		return UUID{}, err
+		return UUID{}, errors.Wrap(err, "failed to read uuid")
 	}
 
 	return UUID(bytes), nil
+}
+
+func (r *Reader) ReadBool() (bool, error) {
+	value, err := r.ReadByte()
+	if err != nil {
+		return false, errors.Wrap(err, "failed to read bool")
+	}
+	return value != 0, nil
+}
+
+func (r *Reader) ReadInt8() (int8, error) {
+	value, err := r.ReadByte()
+	if err != nil {
+		return 0, errors.Wrap(err, "failed to read int8")
+	}
+	return int8(value), err
+}
+
+func (r *Reader) ReadUint8() (uint8, error) {
+	value, err := r.ReadByte()
+	if err != nil {
+		return 0, errors.Wrap(err, "failed to read uint8")
+	}
+	return value, err
 }
 
 func (r *Reader) ReadUint16() (uint16, error) {
 	bytes := make([]byte, 2)
 	_, err := r.Read(bytes)
 	if err != nil {
-		return 0, err
+		return 0, errors.Wrap(err, "failed to read uint16")
 	}
 
 	return binary.BigEndian.Uint16(bytes), nil
@@ -87,7 +110,7 @@ func (r *Reader) ReadInt64() (int64, error) {
 	bytes := make([]byte, 8)
 	_, err := r.Read(bytes)
 	if err != nil {
-		return 0, err
+		return 0, errors.Wrap(err, "failed to read int64")
 	}
 
 	return int64(binary.BigEndian.Uint64(bytes)), nil

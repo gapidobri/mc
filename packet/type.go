@@ -18,5 +18,16 @@ const (
 // Login
 
 const (
-	Login Type = 0x00
+	Login        Type = 0x00
+	Encryption   Type = 0x01
+	LoginSuccess Type = 0x02
+	LoginAck     Type = 0x03
+)
+
+// Configuration
+
+const (
+	ConfigClientInfo    Type = 0x00
+	ConfigPluginMessage Type = 0x01
+	FinishConfig        Type = 0x02
 )

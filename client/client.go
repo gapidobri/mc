@@ -2,6 +2,7 @@ package client
 
 import (
 	"bytes"
+	"crypto/rsa"
 	"encoding/hex"
 	"fmt"
 	"mc/packet"
@@ -13,15 +14,19 @@ type Client struct {
 	reader *packet.Reader
 	writer *packet.Writer
 
-	state packet.State
+	state      packet.State
+	privateKey *rsa.PrivateKey
+
+	player *Player
 }
 
-func NewClient(conn net.Conn) *Client {
+func NewClient(conn net.Conn, privateKey *rsa.PrivateKey) *Client {
 	return &Client{
-		conn:   conn,
-		reader: packet.NewReader(conn),
-		writer: packet.NewWriter(conn),
-		state:  packet.StateHandshaking,
+		conn:       conn,
+		reader:     packet.NewReader(conn),
+		writer:     packet.NewWriter(conn),
+		state:      packet.StateHandshaking,
+		privateKey: privateKey,
 	}
 }
 
@@ -64,45 +69,44 @@ func (c *Client) readPacket() error {
 
 	switch c.state {
 	case packet.StateHandshaking:
-		switch packet.Type(packetId) {
-		case packet.Handshake:
+		if packet.Type(packetId) == packet.Handshake {
 			return c.handleHandshake(reader)
 		}
 
 	case packet.StateStatus:
-		switch packet.Type(packetId) {
-		case packet.Status:
-			return c.handleStatus()
-		case packet.Ping:
-			return c.handlePing(reader)
-		}
+		return c.handleStatusState(packetId, reader)
 
 	case packet.StateLogin:
-		switch packet.Type(packetId) {
-		case packet.Login:
-			return c.handleLogin(reader)
-		}
+		return c.handleLoginState(packetId, reader)
+
+	case packet.StateConfiguration:
+		return c.handleConfigurationState(packetId, reader)
 	}
 
 	fmt.Println("unknown packet")
-	fmt.Printf("0x%s\n", hex.EncodeToString(data))
 	fmt.Printf("packet id: 0x%s\n", hex.EncodeToString([]byte{byte(packetId)}))
+	fmt.Printf("0x%s\n", hex.EncodeToString(data))
 
 	return nil
 }
 
-func (c *Client) reply(packet packet.Packet) error {
-	data, err := packet.Encode()
+func (c *Client) reply(p packet.Packet) error {
+	buf := bytes.NewBuffer(nil)
+	w := packet.NewWriter(buf)
+
+	err := w.WriteVarInt(p.PacketId())
+	err = packet.Write(w, p)
+	err = w.Flush()
 	if err != nil {
 		return err
 	}
 
-	err = c.writer.WriteVarInt(len(data))
+	err = c.writer.WriteVarInt(buf.Len())
 	if err != nil {
 		return err
 	}
 
-	_, err = c.writer.Write(data)
+	_, err = c.writer.Write(buf.Bytes())
 	if err != nil {
 		return err
 	}
@@ -111,68 +115,15 @@ func (c *Client) reply(packet packet.Packet) error {
 }
 
 func (c *Client) handleHandshake(r *packet.Reader) error {
-	handshakeReq, err := packet.ReadHandshakeReq(r)
+	var handshakeReq packet.HandshakeReq
+	err := packet.Read(r, &handshakeReq)
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("handshake request: %+v\n", handshakeReq)
+	fmt.Printf("< handshake request: %+v\n", handshakeReq)
 
 	c.state = handshakeReq.NextState
-
-	return nil
-}
-
-func (c *Client) handleStatus() error {
-	fmt.Println("status request")
-	statusRes := packet.StatusRes{
-		Version: packet.Version{
-			Name:     "1.20.4",
-			Protocol: 762,
-		},
-		Players: packet.Players{
-			Max:    420,
-			Online: 69,
-			Sample: []packet.Sample{
-				{
-					Name: "tvoja_mami",
-					Id:   "4566e69f-c907-48ee-8d71-d7ba5aa00d20",
-				},
-			},
-		},
-		Description: packet.Description{
-			Text: "It works!!!",
-		},
-	}
-
-	fmt.Printf("status reply: %+v\n", statusRes)
-	return c.reply(statusRes)
-}
-
-func (c *Client) handlePing(r *packet.Reader) error {
-	pingReq, err := packet.ReadPingReq(r)
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("ping request: %+v\n", pingReq)
-
-	pingRes := packet.PingRes{
-		Payload: pingReq.Payload,
-	}
-
-	fmt.Printf("ping reply: %+v\n", pingRes)
-
-	return c.reply(pingRes)
-}
-
-func (c *Client) handleLogin(r *packet.Reader) error {
-	loginReq, err := packet.ReadLoginReq(r)
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("login request: %+v\n", loginReq)
 
 	return nil
 }

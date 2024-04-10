@@ -3,6 +3,7 @@ package packet
 import (
 	"bufio"
 	"encoding/binary"
+	"github.com/pkg/errors"
 	"io"
 )
 
@@ -23,7 +24,7 @@ func (w *Writer) WriteVarInt(value int) error {
 
 		err := w.WriteByte(byte((v & segmentBits) | continueBit))
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to write VarInt")
 		}
 
 		v >>= 7
@@ -38,11 +39,26 @@ func (w *Writer) WriteString(value string) error {
 	}
 
 	_, err = w.Write(v)
-	return err
+	return errors.Wrap(err, "failed to write string")
+}
+
+func (w *Writer) WriteUUID(uuid UUID) error {
+	_, err := w.Write(uuid[:])
+	return errors.Wrap(err, "failed to write uuid")
 }
 
 func (w *Writer) WriteInt64(value int64) error {
 	bytes := binary.BigEndian.AppendUint64(nil, uint64(value))
 	_, err := w.Write(bytes)
-	return err
+	return errors.Wrap(err, "failed to write int64")
+}
+
+func (w *Writer) WriteBool(value bool) error {
+	var v byte
+	if value {
+		v = 0
+	} else {
+		v = 1
+	}
+	return w.WriteByte(v)
 }
