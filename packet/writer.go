@@ -56,8 +56,6 @@ func (w *Writer) WriteInt64(value int64) error {
 func (w *Writer) WriteBool(value bool) error {
 	var v byte
 	if value {
-		v = 0
-	} else {
 		v = 1
 	}
 	return w.WriteByte(v)

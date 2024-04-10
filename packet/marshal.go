@@ -2,6 +2,7 @@ package packet
 
 import (
 	"encoding/binary"
+	"github.com/pkg/errors"
 	"reflect"
 )
 
@@ -27,32 +28,64 @@ func Write(w *Writer, value any) (err error) {
 
 	for i := 0; i < v.NumField(); i++ {
 		f := v.Field(i)
+		t := v.Type().Field(i)
 
-		if m, ok := f.Interface().(Marshaler); ok {
-			err = m.Marshal(w)
-			if err != nil {
-				return
+		if opt, exists := t.Tag.Lookup("optional"); exists {
+			if !v.FieldByName(opt).Bool() {
+				continue
 			}
-			continue
 		}
 
-		if f.CanInt() {
-			if f.Kind() == reflect.Int {
-				err = w.WriteVarInt(int(f.Int()))
-			} else {
-				err = binary.Write(w, binary.BigEndian, f.Int())
+		if !f.CanAddr() {
+			ptr := reflect.New(f.Type())
+			ptr.Elem().Set(f)
+
+			if m, ok := ptr.Interface().(Marshaler); ok {
+				err = m.Marshal(w)
+				if err != nil {
+					return
+				}
+				continue
 			}
 		} else {
-			switch f.Kind() {
-			case reflect.String:
-				err = w.WriteString(f.String())
-			case reflect.Bool:
-				err = w.WriteBool(f.Bool())
-			case reflect.Struct:
-				err = Write(w, f.Interface())
-			default:
+			if m, ok := f.Addr().Interface().(Marshaler); ok {
+				err = m.Marshal(w)
+				if err != nil {
+					return
+				}
+				continue
 			}
 		}
+
+		switch f.Kind() {
+		case reflect.Int:
+			err = w.WriteVarInt(int(f.Int()))
+		case reflect.Int8:
+			err = w.WriteByte(byte(f.Int()))
+		case reflect.Int16:
+			err = binary.Write(w, binary.BigEndian, int16(f.Int()))
+		case reflect.Int32:
+			err = binary.Write(w, binary.BigEndian, int32(f.Int()))
+		case reflect.Int64:
+			err = binary.Write(w, binary.BigEndian, f.Int())
+		case reflect.Uint8:
+			err = binary.Write(w, binary.BigEndian, uint8(f.Uint()))
+		case reflect.Uint16:
+			err = binary.Write(w, binary.BigEndian, uint16(f.Uint()))
+		case reflect.Uint32:
+			err = binary.Write(w, binary.BigEndian, uint32(f.Uint()))
+		case reflect.Uint64:
+			err = binary.Write(w, binary.BigEndian, f.Uint())
+		case reflect.String:
+			err = w.WriteString(f.String())
+		case reflect.Bool:
+			err = w.WriteBool(f.Bool())
+		case reflect.Struct:
+			err = Write(w, f.Interface())
+		default:
+			err = errors.New("couldn't marshal " + f.Type().String())
+		}
+
 		if err != nil {
 			return
 		}

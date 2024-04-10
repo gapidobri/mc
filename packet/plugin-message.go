@@ -5,17 +5,21 @@ type PluginMessage struct {
 	Data    []byte
 }
 
-func ReadPluginMessage(r *Reader) (*PluginMessage, error) {
+func (p *PluginMessage) Unmarshal(r *Reader) error {
 	channel, err := r.ReadString()
-
 	if err != nil {
-		return nil, err
+		return err
+	}
+	p.Channel = channel
+
+	switch channel {
+	case "minecraft:brand":
+		brand, err := r.ReadString()
+		if err != nil {
+			return err
+		}
+		p.Data = []byte(brand)
 	}
 
-	pluginMessage := &PluginMessage{
-		Channel: channel,
-		Data:    []byte{},
-	}
-
-	return pluginMessage, nil
+	return nil
 }

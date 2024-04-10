@@ -17,14 +17,21 @@ func Read(r *Reader, value any) error {
 	}
 	v = reflect.Indirect(v)
 
-	if m, ok := v.Interface().(Unmarshaler); ok {
+	if m, ok := v.Addr().Interface().(Unmarshaler); ok {
 		return m.Unmarshal(r)
 	}
 
 	for i := 0; i < v.NumField(); i++ {
 		f := v.Field(i)
+		t := v.Type().Field(i)
 
-		if m, ok := f.Interface().(Unmarshaler); ok {
+		if opt, exists := t.Tag.Lookup("optional"); exists {
+			if !f.FieldByName(opt).Bool() {
+				continue
+			}
+		}
+
+		if m, ok := f.Addr().Interface().(Unmarshaler); ok {
 			err := m.Unmarshal(r)
 			if err != nil {
 				return err
@@ -127,7 +134,7 @@ func Read(r *Reader, value any) error {
 			f.Set(reflect.ValueOf(val))
 
 		default:
-			return errors.New("can't unmarshal field")
+			return errors.New("can't unmarshal field " + f.Type().String() + " in " + v.Type().String())
 
 		}
 	}

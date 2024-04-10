@@ -19,7 +19,8 @@ func (c *Client) handleLoginState(packetId int, r *packet.Reader) error {
 }
 
 func (c *Client) handleLogin(r *packet.Reader) error {
-	loginReq, err := packet.ReadLoginReq(r)
+	var loginReq packet.LoginReq
+	err := packet.Read(r, &loginReq)
 	if err != nil {
 		return err
 	}

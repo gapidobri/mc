@@ -3,7 +3,9 @@ package client
 import (
 	"encoding/hex"
 	"fmt"
+	"math/rand"
 	"mc/packet"
+	"mc/packet/play"
 )
 
 func (c *Client) handleConfigurationState(packetId int, r *packet.Reader) error {
@@ -33,7 +35,8 @@ func (c *Client) handleConfigClientInfo(r *packet.Reader) error {
 }
 
 func (c *Client) handleConfigPluginMessage(r *packet.Reader) error {
-	pluginMessage, err := packet.ReadPluginMessage(r)
+	var pluginMessage packet.PluginMessage
+	err := packet.Read(r, &pluginMessage)
 	if err != nil {
 		return err
 	}
@@ -48,5 +51,23 @@ func (c *Client) handleFinishConfigAck() error {
 
 	c.state = packet.StatePlay
 
-	return nil
+	loginReq := play.LoginReq{
+		EntityID:            10,
+		DimensionNames:      []string{"minecraft:overworld"},
+		MaxPlayers:          10,
+		ViewDistance:        20,
+		SimulationDistance:  10,
+		EnableRespawnScreen: true,
+		DimensionType:       "minecraft:dimension_type", // TODO
+		DimensionName:       "minecraft:overworld",
+		HashedSeed:          rand.Int63(),
+		GameMode:            play.GameModeCreative,
+		PreviousGameMode:    play.PreviousGameModeUndefined,
+		IsDebug:             true,
+		IsFlat:              true,
+	}
+
+	fmt.Printf("> login request: %+v\n", loginReq)
+
+	return c.reply(loginReq)
 }

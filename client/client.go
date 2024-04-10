@@ -60,9 +60,9 @@ func (c *Client) readPacket() error {
 		return err
 	}
 
-	reader := packet.NewReader(bytes.NewReader(data))
+	r := packet.NewReader(bytes.NewReader(data))
 
-	packetId, err := reader.ReadVarInt()
+	packetId, err := r.ReadVarInt()
 	if err != nil {
 		return err
 	}
@@ -70,17 +70,20 @@ func (c *Client) readPacket() error {
 	switch c.state {
 	case packet.StateHandshaking:
 		if packet.Type(packetId) == packet.Handshake {
-			return c.handleHandshake(reader)
+			return c.handleHandshake(r)
 		}
 
 	case packet.StateStatus:
-		return c.handleStatusState(packetId, reader)
+		return c.handleStatusState(packetId, r)
 
 	case packet.StateLogin:
-		return c.handleLoginState(packetId, reader)
+		return c.handleLoginState(packetId, r)
 
 	case packet.StateConfiguration:
-		return c.handleConfigurationState(packetId, reader)
+		return c.handleConfigurationState(packetId, r)
+
+	case packet.StatePlay:
+		return c.handlePlayState(packetId, r)
 	}
 
 	fmt.Println("unknown packet")
@@ -95,7 +98,15 @@ func (c *Client) reply(p packet.Packet) error {
 	w := packet.NewWriter(buf)
 
 	err := w.WriteVarInt(p.PacketId())
+	if err != nil {
+		return err
+	}
+
 	err = packet.Write(w, p)
+	if err != nil {
+		return err
+	}
+
 	err = w.Flush()
 	if err != nil {
 		return err

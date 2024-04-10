@@ -1,15 +1,15 @@
 package packet
 
-type UUID [16]byte
+type UUID []byte
 
 func (u *UUID) Marshal(w *Writer) error {
-	_, err := w.Write(u[:])
+	_, err := w.Write(*u)
 	return err
 }
 
 func (u *UUID) Unmarshal(r *Reader) error {
-	var bytes [16]byte
-	_, err := r.Read(bytes[:])
+	bytes := make([]byte, 16)
+	_, err := r.Read(bytes)
 	if err != nil {
 		return err
 	}
@@ -22,32 +22,11 @@ type LoginReq struct {
 	PlayerUUID UUID
 }
 
-func ReadLoginReq(r *Reader) (*LoginReq, error) {
-	name, err := r.ReadString()
-	if err != nil {
-		return nil, err
-	}
-
-	playerUUID, err := r.ReadUUID()
-	if err != nil {
-		return nil, err
-	}
-
-	loginReq := &LoginReq{
-		Name:       name,
-		PlayerUUID: playerUUID,
-	}
-
-	return loginReq, nil
+type LoginRes struct {
+	UUID       UUID
+	Username   string
+	Properties Properties
 }
-
-type (
-	LoginRes struct {
-		UUID       UUID
-		Username   string
-		Properties Properties
-	}
-)
 
 func (LoginRes) PacketId() int {
 	return int(LoginSuccess)
